@@ -1,0 +1,5 @@
+{
+  "name": "YouTube Auto Player",
+  "description": "An automatic YouTube video and playlist player with scheduling.",
+  "requestFramePermissions": []
+}
