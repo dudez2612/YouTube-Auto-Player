@@ -21,6 +21,7 @@ const App = () => {
     const [currentPlayingId, setCurrentPlayingId] = useState(null);
     
     const playersRef = useRef<{ [id: string]: any }>({});
+    const playerReadyStatusRef = useRef<{ [id: string]: boolean }>({});
     const currentVideoIndexRef = useRef(0);
     const loopCountRef = useRef(0);
     const scheduleIntervalRef = useRef(null);
@@ -38,6 +39,8 @@ const App = () => {
         if (idToRemove === currentPlayingId) {
             stopPlayback('Stopped because the playing video was removed.');
         }
+        // Clean up player ready status
+        delete playerReadyStatusRef.current[idToRemove];
         setVideos(videos.filter(v => v.id !== idToRemove));
     };
     
@@ -92,6 +95,15 @@ const App = () => {
         setTimeout(playNextVideo, 3000);
     }, [playNextVideo]);
 
+    const onPlayerReady = useCallback((event, videoId) => {
+        playerReadyStatusRef.current[videoId] = true;
+        // If this is the player we're waiting for, start playing
+        const validVideos = videos.filter(v => v.url);
+        if (validVideos.length > 0 && validVideos[currentVideoIndexRef.current]?.id === videoId && isPlaying) {
+            playVideo();
+        }
+    }, [videos, isPlaying]);
+
     const onPlayerStateChange = useCallback((event) => {
         const playerInstance = event.target;
         let playingVideoId = null;
@@ -141,8 +153,9 @@ const App = () => {
 
         const videoToPlay = validVideos[currentVideoIndexRef.current];
         const player = playersRef.current[videoToPlay.id];
+        const isPlayerReady = playerReadyStatusRef.current[videoToPlay.id];
 
-        if (!player) {
+        if (!player || !isPlayerReady) {
              setStatus(`Player for ${videoToPlay.url} not ready. Skipping.`);
              setTimeout(playNextVideo, 2000);
              return;
@@ -221,10 +234,12 @@ const App = () => {
                     width: '100%',
                     playerVars: { 'playsinline': 1, 'controls': 1, 'rel': 0, 'modestbranding': 1 },
                     events: {
+                        'onReady': (event) => onPlayerReady(event, video.id),
                         'onStateChange': onPlayerStateChange,
                         'onError': onPlayerError
                     }
                 });
+                playerReadyStatusRef.current[video.id] = false;
             }
         });
 
@@ -233,10 +248,11 @@ const App = () => {
             if (!currentVideoIds.has(Number(playerId))) {
                 playersRef.current[playerId]?.destroy();
                 delete playersRef.current[playerId];
+                delete playerReadyStatusRef.current[playerId];
             }
         });
 
-    }, [videos, isApiReady, onPlayerStateChange, onPlayerError]);
+    }, [videos, isApiReady, onPlayerStateChange, onPlayerError, onPlayerReady]);
     
     return (
         <>
